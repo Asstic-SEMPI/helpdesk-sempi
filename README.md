@@ -1,36 +1,36 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 🎫 Sistema de Gestão de Chamados de TI (Helpdesk TI)
 
-## Getting Started
+Sistema moderno, seguro e sem custos operacionais para recepção, triagem, atendimento, rastreabilidade e encerramento de chamados de TI para secretarias e órgãos públicos.
 
-First, run the development server:
+Desenvolvido para execução em arquitetura **Serverless (Vercel)** integrada a **Supabase (PostgreSQL, Storage e Auth)**, com notificações automáticas via **Gmail (Nodemailer)** e links dinâmicos para **WhatsApp Web**.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+---
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## 🚀 Tecnologias
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- **Framework Web & API:** Next.js 14+ / 15 (App Router, Server Actions, TypeScript)
+- **Estilização & UI:** Tailwind CSS, Lucide React
+- **Banco de Dados & Storage:** Supabase (PostgreSQL 15+, Supabase Storage com Buckets Privados)
+- **Autenticação:** Supabase Auth gerenciado via Admin API no backend (sem auto-cadastro público)
+- **Mensageria de E-mail:** Nodemailer utilizando conta Gmail via App Password (Custo Zero)
+- **Integração WhatsApp:** Links dinâmicos parametrizados (`wa.me`) com mensagens pré-formatadas
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+---
 
-## Learn More
+## 📌 Principais Recursos
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+1. **Abertura Pública Descomplicada (QR Code / Link):**
+   - Formulário público rápido e responsivo.
+   - Categorias predefinidas (Softwares, SEI, Internet/Wifi, Rede, Hardware, Emails).
+   - Upload restrito a arquivos de até **3 MB** (PDF, PNG, JPG).
+2. **Acompanhamento Seguro por Token Criptográfico (Sem Login para Solicitante):**
+   - URL com token de alta entropia UUID v4 (`/acompanhar/[tracking_token]`).
+   - Prevenção ativa de IDOR (Insecure Direct Object References).
+3. **Ciclo Completo de Atendimento e Validação:**
+   - Atribuição para técnicos da equipe.
+   - Registro detalhado de procedimentos técnicos adotados.
+   - **Validação pelo Solicitante:** O usuário aprova o atendimento ou reabre com novos esclarecimentos e novos anexos.
+4. **Gestão Interna de Usuários (Painel TI):**
+   - Cadastro de técnicos e gestores diretamente pelo painel administrativo (via `auth.admin.createUser`).
+5. **Auditoria e Tracklog Imutável:**
+   - Histórico permanente em `audit_logs` registrando data, autor, ação, IP e alterações de estado.
