@@ -4,6 +4,12 @@ import { listarTecnicos } from '@/app/actions/usuarios';
 import { ChamadosTable } from '@/components/admin/ChamadosTable';
 import { Ticket } from 'lucide-react';
 
+import type { Metadata } from 'next';
+
+export const metadata: Metadata = {
+  title: 'Gestão de Chamados',
+};
+
 export const dynamic = 'force-dynamic';
 
 export default async function ChamadosAdminPage({

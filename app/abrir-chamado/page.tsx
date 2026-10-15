@@ -3,6 +3,12 @@ import { FormularioAberturaChamado } from '@/components/publico/FormularioAbertu
 import Link from 'next/link';
 import { LifeBuoy, ArrowLeft } from 'lucide-react';
 
+import type { Metadata } from 'next';
+
+export const metadata: Metadata = {
+  title: 'Abrir Novo Chamado',
+};
+
 export default function AbrirChamadoPage() {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col justify-between">

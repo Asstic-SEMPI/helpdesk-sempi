@@ -3,6 +3,12 @@ import { listarTecnicos } from '@/app/actions/usuarios';
 import { GestaoUsuarios } from '@/components/admin/GestaoUsuarios';
 import { Users } from 'lucide-react';
 
+import type { Metadata } from 'next';
+
+export const metadata: Metadata = {
+  title: 'Equipe de TI',
+};
+
 export const dynamic = 'force-dynamic';
 
 export default async function UsuariosAdminPage() {
