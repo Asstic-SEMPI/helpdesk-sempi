@@ -97,7 +97,7 @@ export async function criarChamado(formData: FormData) {
     }
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-    const emailNotificacaoTI = process.env.EMAIL_TI_NOTIFICACOES || 'ti.asstic@gmail.com';
+    const emailNotificacaoTI = process.env.EMAIL_TI_NOTIFICACOES || 'ti.asstic@gmail.com, andersonesribeiro@hotmail.com, lgtec3@gmail.com, comeex7@gmail.com';
     const linkAcompanhamento = `${appUrl}/acompanhar/${ticket.tracking_token}`;
     const linkPainelAdmin = `${appUrl}/admin/chamados/${ticket.id}`;
 
@@ -358,7 +358,7 @@ export async function validarChamadoPeloSolicitante({
       });
 
       // Notificar técnico responsável ou equipe TI
-      const emailDestino = ticket.tecnico_responsavel?.email || process.env.EMAIL_TI_NOTIFICACOES || 'ti.asstic@gmail.com';
+      const emailDestino = ticket.tecnico_responsavel?.email || process.env.EMAIL_TI_NOTIFICACOES || 'ti.asstic@gmail.com, andersonesribeiro@hotmail.com, lgtec3@gmail.com, comeex7@gmail.com';
       const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
 
       try {

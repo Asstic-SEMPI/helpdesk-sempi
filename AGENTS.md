@@ -17,7 +17,7 @@ O **Sistema de Gestão de Chamados de TI (Helpdesk TI)** foi construído para a 
 - **Identidade Visual:** Design institucional limpo, profissional e moderno mesclando **Branco e Azul Marinho** (`#003B73` / `#0B1E3B`).
 - **Banco de Dados & Storage:** Supabase (PostgreSQL 15+, Supabase Storage bucket `ticket-attachments` privado).
 - **Autenticação:** Supabase Auth via Admin API (`auth.admin.createUser`) e Server Actions (`signInWithPassword`) gravando cookies HTTP-only de sessão.
-- **Notificações:** Servidor de E-mail Institucional Zimbra (`10.11.28.5` / `helpdesk.asstic@mulher.rj.gov.br`) na porta 587 (STARTTLS) com Nodemailer para:
+- **Mensageria em Nuvem (Compatível com Vercel):** Servidor SMTP Brevo Relay (`smtp-relay.brevo.com:587`) autenticando com login `be4b57001@smtp-brevo.com` e remetente institucional `helpdeskti.sempi@outlook.com`.
   - Confirmação de abertura para o solicitante com link de acompanhamento;
   - Alerta de nova solicitação para a equipe de TI;
   - Notificação de início de atendimento (`EM_ATENDIMENTO`);
@@ -32,16 +32,15 @@ O **Sistema de Gestão de Chamados de TI (Helpdesk TI)** foi construído para a 
 - Implementação de Server Action em [`app/actions/auth.ts`](file:///Users/rogercandez/Documents/Sistema%20Helpdesk%20Sempi/app/actions/auth.ts) com `signInWithPassword` e persistência de cookies via `@supabase/ssr`.
 - Sincronização e provisionamento do usuário Admin no Supabase Auth e tabela `public.profiles`.
 
-### B. Transição de Canal de Contato: E-mail Institucional Zimbra
+### B. Transição de Canal de Contato e Mensageria Brevo
 - O formulário público em `/abrir-chamado` solicita o **E-mail** do solicitante com validação de formato.
 - O solicitante recebe um e-mail imediato de confirmação com seu número de protocolo e link exclusivo.
 - Toda transição de status realizada pelo técnico dispara automaticamente e-mail formatado para a caixa de entrada do solicitante.
-- O serviço [`lib/email/mailer.ts`](file:///Users/rogercandez/Documents/Sistema%20Helpdesk%20Sempi/lib/email/mailer.ts) foi configurado para o servidor SMTP Zimbra institucional (`10.11.28.5:587`, STARTTLS e certificados internos aceitos), autenticando com `helpdesk.asstic@mulher.rj.gov.br`.
+- O serviço [`lib/email/mailer.ts`](file:///Users/rogercandez/Documents/Sistema%20Helpdesk%20Sempi/lib/email/mailer.ts) opera via Nodemailer conectado ao SMTP Relay do Brevo (`smtp-relay.brevo.com:587`), enviando com remetente `helpdeskti.sempi@outlook.com`.
 
 ### C. Dropdowns Padronizados (Categoria & Unidades SEMPI)
 - **Categoria do Chamado:** Dropdown estilizado com placeholder inicial e opções: `Softwares`, `SEI`, `Internet / Wifi`, `Rede (Acesso, Senhas, Usuarios)`, `Hardware (Monitor, Teclado, Impressora)` e `Emails`.
-- **Unidade / Departamento:** Dropdown padronizado com as 51 unidades oficiais da SEMPI em `types/index.ts` (`DEPARTAMENTOS_SEMPI`):
-  - `SEMPI/ASSAPI`, `SEMPI/ASSCOM`, `SEMPI/ASSESP`, `SEMPI/ASSINT`, `SEMPI/ASSJUR`, `SEMPI/ASSP`, `SEMPI/ASSPLAN`, `SEMPI/ASSTIC`, etc.
+- **Unidade / Departamento:** Dropdown padronizado com as 51 unidades oficiais da SEMPI em `types/index.ts` (`DEPARTAMENTOS_SEMPI`).
 
 ### D. Redesign Institucional (Branco e Azul Marinho)
 - Substituição da estética dark/neon por uma identidade governamental sóbria e elegante:
@@ -52,7 +51,7 @@ O **Sistema de Gestão de Chamados de TI (Helpdesk TI)** foi construído para a 
 ### E. Módulos e Rotas
 1. **Público:**
    - `/`: Landing page moderna com atalhos rápidos e apresentação do suporte da SEMPI.
-   - `/abrir-chamado`: Formulário público completo com dropdowns de departamentos da SEMPI e categorias, e-mail do solicitante e anexo até 3 MB.
+   - `/abrir-chamado`: Formulário público completo com dropdowns de departamentos da SEMPI e categorias, e-mail do solicitante e anexo até 3 MB (limite `bodySizeLimit` de 5 MB no `next.config.ts`).
    - `/acompanhar/[token]`: Tela protegida anti-IDOR via token criptográfico com histórico de atendimento, download seguro de anexos e botões de validação (Aprovar / Reabrir).
 2. **Painel Administrativo da TI:**
    - `/admin/login`: Autenticação dos operadores e gestores via Server Action e cookies.
@@ -72,5 +71,4 @@ O **Sistema de Gestão de Chamados de TI (Helpdesk TI)** foi construído para a 
 
 ## 4. Diretrizes para Próximas Interações
 - Para rodar scripts de manutenção ou seeds com variáveis de ambiente: `node --env-file=.env.local scripts/<script>.mjs`.
-- Configurações do SMTP Zimbra estão definidas em `.env.local` (`SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`).
-- A lista de departamentos da SEMPI está centralizada em `types/index.ts` como constante `DEPARTAMENTOS_SEMPI`.
+- Configurações do SMTP Brevo estão definidas em `.env.local` (`SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `EMAIL_FROM`, `EMAIL_TI_NOTIFICACOES`).
