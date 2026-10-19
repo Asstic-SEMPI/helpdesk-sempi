@@ -568,29 +568,39 @@ export async function atualizarAtendimentoTecnico({
       try {
         await enviarEmail({
           para: destinoEmail,
-          assunto: `[Ação Necessária] Seu chamado ${ticketAntigo.protocolo} aguarda validação`,
+          assunto: `[Ação Necessária] Seu chamado ${ticketAntigo.protocolo} aguarda validação (Prazo: 5 dias)`,
           html: `
             <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #1e293b; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden;">
               <div style="background: linear-gradient(135deg, #7c3aed, #4f46e5); padding: 24px; color: #ffffff;">
                 <h1 style="margin: 0; font-size: 20px;">Atendimento Concluído pela Equipe TI</h1>
-                <p style="margin: 4px 0 0; font-size: 14px; opacity: 0.9;">O chamado aguarda a sua validação para encerramento.</p>
+                <p style="margin: 4px 0 0; font-size: 14px; opacity: 0.9;">O chamado aguarda a sua validação para encerramento definitivo.</p>
               </div>
               
               <div style="padding: 24px; background: #ffffff;">
                 <p>Olá, <strong>${ticketAntigo.nome_solicitante}</strong>,</p>
-                <p>O técnico de TI concluiu o procedimento referente ao chamado <strong>${ticketAntigo.protocolo}</strong>.</p>
+                <p>O técnico de TI concluiu o procedimento referente ao seu chamado <strong>${ticketAntigo.protocolo}</strong>.</p>
                 
                 <div style="background: #f5f3ff; border-left: 4px solid #7c3aed; padding: 16px; margin: 20px 0; border-radius: 4px;">
                   <p style="margin: 0 0 6px; font-weight: bold; color: #6d28d9;">Procedimento Realizado:</p>
-                  <p style="margin: 0; color: #334155;">${procedimento || 'Procedimento executado conforme solicitação técnica.'}</p>
+                  <p style="margin: 0; color: #334155;">${procedimento || 'Procedimento técnico executado conforme solicitação.'}</p>
                 </div>
 
-                <p>Por favor, acesse a página de validação para confirmar se o problema foi solucionado ou solicitar reabertura:</p>
+                <div style="background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 14px; margin: 20px 0;">
+                  <p style="margin: 0; font-size: 13px; color: #92400e; line-height: 1.5;">
+                    ⏳ <strong>Aviso Importante sobre Prazo:</strong> Caso não haja manifestação ou interação em até <strong>5 dias corridos</strong> a contar deste envio, o sistema <strong>aprovará e concluirá o chamado automaticamente</strong>.
+                  </p>
+                </div>
+
+                <p>Por favor, acesse a página de validação para confirmar a solução ou solicitar a reabertura do chamado caso ainda reste alguma pendência:</p>
                 
                 <p style="text-align: center; margin: 24px 0;">
                   <a href="${linkValidacao}" style="background: #7c3aed; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block;">
                     Validar Atendimento Agora
                   </a>
+                </p>
+
+                <p style="font-size: 12px; color: #64748b; border-top: 1px solid #f1f5f9; padding-top: 14px; margin-top: 24px;">
+                  Mensagem automática enviada pelo Sistema Helpdesk TI da SEMPI.
                 </p>
               </div>
             </div>

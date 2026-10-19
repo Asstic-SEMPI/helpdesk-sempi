@@ -1,6 +1,7 @@
 import React from 'react';
 import { listarChamadosAdmin } from '@/app/actions/tickets';
 import { listarTecnicos } from '@/app/actions/usuarios';
+import { processarChamadosPendentesValidacao } from '@/lib/services/rotinaValidacao';
 import { ChamadosTable } from '@/components/admin/ChamadosTable';
 import { Ticket } from 'lucide-react';
 
@@ -22,6 +23,11 @@ export default async function ChamadosAdminPage({
   const categoria = resolvedParams?.categoria || 'TODAS';
   const tecnicoId = resolvedParams?.tecnicoId || 'TODOS';
   const busca = resolvedParams?.busca || '';
+
+  // Executar a rotina em segundo plano para garantir atualização contínua mesmo sem cron configurado
+  processarChamadosPendentesValidacao().catch((e) =>
+    console.error('Erro na rotina em background de validação:', e)
+  );
 
   const [chamados, tecnicos] = await Promise.all([
     listarChamadosAdmin({ status, categoria, tecnicoId, busca }),

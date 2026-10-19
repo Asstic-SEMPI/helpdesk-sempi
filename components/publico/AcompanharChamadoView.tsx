@@ -181,6 +181,11 @@ export function AcompanharChamadoView({
                 A equipe de TI realizou o procedimento e solicita a sua validação. O seu problema foi solucionado com sucesso?
               </p>
 
+              <div className="mt-3 p-3 rounded-xl bg-amber-50 border border-amber-200/80 text-amber-900 text-xs flex items-center gap-2">
+                <span className="font-bold">⏳ Prazo:</span>
+                <span>Se não for validado em até <strong>5 dias corridos</strong>, o sistema aprovará a conclusão automaticamente.</span>
+              </div>
+
               {erro && (
                 <div className="mt-3 p-3 rounded-xl bg-rose-100 border border-rose-200 text-rose-800 text-xs">
                   {erro}
