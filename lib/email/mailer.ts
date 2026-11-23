@@ -47,7 +47,7 @@ function getTransporter() {
 export async function enviarEmail({ para, assunto, html }: EnviarEmailParams) {
   try {
     const user = process.env.SMTP_USER || process.env.GMAIL_USER;
-    const emailRemetente = process.env.EMAIL_FROM || user || 'helpdeskti.sempi@outlook.com';
+    const emailRemetente = process.env.EMAIL_FROM || user || 'helpdesk.asstic@12471127.brevosend.com';
 
     const transporter = getTransporter();
     if (!transporter) {

@@ -9,6 +9,7 @@ import {
   Lock,
   ArrowRight,
   Headphones,
+  PenTool,
 } from 'lucide-react';
 
 export default function HomePage() {
@@ -65,6 +66,14 @@ export default function HomePage() {
           >
             <PlusCircle className="w-5 h-5" />
             <span>Abrir Chamado de TI</span>
+          </Link>
+
+          <Link
+            href="/assinatura"
+            className="w-full sm:w-auto px-7 py-4 bg-white hover:bg-slate-50 text-[#003B73] font-bold rounded-xl text-base border-2 border-[#003B73]/20 hover:border-[#003B73] shadow-xs flex items-center justify-center gap-3 transition-all transform hover:-translate-y-0.5 cursor-pointer"
+          >
+            <PenTool className="w-5 h-5" />
+            <span>Gerar Assinatura de E-mail</span>
           </Link>
         </div>
 

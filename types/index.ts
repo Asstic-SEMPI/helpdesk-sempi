@@ -143,3 +143,71 @@ export interface AuditLog {
   created_at: string;
   actor?: Profile | null;
 }
+
+export const SETORES_ASSINATURA_SEMPI = [
+  'Assessoria de Comunicação',
+  'Assessoria de Controle Interno',
+  'Assessoria de Planejamento',
+  'Assessoria de Tecnologia da Informação',
+  'Assessoria Jurídica',
+  'Conselho Estadual dos Direitos da Mulher',
+  'Coord Artic Rede Fortalecimento Atendimento Mulher',
+  'Coord Assuntos Intersetoriais e Ações Afirmativas',
+  'Coord de Execução de Transferências Voluntárias',
+  'Coordenação de Acessibilidade',
+  'Coordenação de Cuidados',
+  'Coordenadoria de Almoxarifado',
+  'Coordenadoria de Bens Imóveis',
+  'Coordenadoria de Compras',
+  'Coordenadoria de Contabilidade',
+  'Coordenadoria de Contratos',
+  'Coordenadoria de Gestão de Pessoas',
+  'Coordenadoria de Logística',
+  'Coordenadoria de Orçamento',
+  'Coordenadoria de Patrimônio',
+  'Coordenadoria de Serviço Social',
+  'Coordenadoria de Transporte',
+  'Coordenadoria Financeira',
+  'Coordenadoria Operacional',
+  'Gabinete do Secretário',
+  'Núcleo de Ações Afirmativas Apoio Às Diversidades',
+  'Subsecretaria de Políticas Inclusivas',
+  'Subsecretaria de Políticas para Mulheres',
+  'Superint Artic Institucional Polític Transversais',
+  'Superint Enfrentamento à Violência Contra a Mulher',
+  'Superintendência de Ações da PCD',
+  'Superintendência de Administração e Finanças',
+  'Superintendência de Autonomia Econômica da Mulher',
+  'Superintendência de Projetos Especiais',
+  'Superintendência de Projetos Sociais',
+  'Superintendência do Programa RJ para Todos',
+  'Superintendência Paradesporto Projetos Inclusivos',
+  'Superintendência Terapêutica',
+  'Centro Especializado em Atendimento à Mulher',
+] as const;
+
+export type SetorAssinaturaSempi = typeof SETORES_ASSINATURA_SEMPI[number];
+
+export const CARGOS_ASSINATURA_SEMPI = [
+  'ADJUNTO II',
+  'AJUDANTE I',
+  'AJUDANTE II',
+  'ASSESSOR',
+  'ASSESSORA',
+  'ASSISTENTE',
+  'ASSISTENTE II',
+  'ASSISTENTE III',
+  'CHEFE DE CENTRO',
+  'CHEFE DE NÚCLEO',
+  'CHEFE DE SERVIÇO',
+  'COORDENADOR',
+  'COORDENADORA',
+  'DIRETOR DE UNIDADE',
+  'SECRETÁRIO II',
+  'SECRETÁRIA II',
+  'SUBSECRETÁRIO ADJUNTO',
+  'SUBSECRETÁRIA ADJUNTA',
+  'SUPERINTENDENTE',
+] as const;
+
+export type CargoAssinaturaSempi = typeof CARGOS_ASSINATURA_SEMPI[number];

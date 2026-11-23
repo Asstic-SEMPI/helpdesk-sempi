@@ -13,6 +13,7 @@ import {
   ShieldCheck,
   ChevronLeft,
   ChevronRight,
+  PenTool,
 } from 'lucide-react';
 import { logoutAction } from '@/app/actions/auth';
 
@@ -159,6 +160,23 @@ export function AdminSidebar({ perfil }: { perfil?: any }) {
           <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'gap-3'}`}>
             <PlusCircle className="w-5 h-5 text-emerald-400 shrink-0" />
             {!isCollapsed && <span className="truncate">Novo Chamado</span>}
+          </div>
+          {!isCollapsed && <ExternalLink className="w-3.5 h-3.5 opacity-60 shrink-0" />}
+        </Link>
+
+        <Link
+          href="/assinatura"
+          target="_blank"
+          title={isCollapsed ? 'Assinatura Digital (Acesso Público)' : undefined}
+          className={`flex items-center rounded-xl text-sm font-medium text-slate-300 hover:text-white hover:bg-[#142B4E] transition-all ${
+            isCollapsed
+              ? 'justify-center w-full h-11'
+              : 'justify-between px-3.5 py-2.5'
+          }`}
+        >
+          <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'gap-3'}`}>
+            <PenTool className="w-5 h-5 text-sky-400 shrink-0" />
+            {!isCollapsed && <span className="truncate">Assinatura Digital</span>}
           </div>
           {!isCollapsed && <ExternalLink className="w-3.5 h-3.5 opacity-60 shrink-0" />}
         </Link>
