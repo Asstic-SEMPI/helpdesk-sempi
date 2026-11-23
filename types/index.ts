@@ -211,3 +211,22 @@ export const CARGOS_ASSINATURA_SEMPI = [
 ] as const;
 
 export type CargoAssinaturaSempi = typeof CARGOS_ASSINATURA_SEMPI[number];
+
+export type SignatureRequestStatus = 'PENDENTE' | 'APROVADO' | 'RECUSADO';
+
+export interface SignatureRequest {
+  id: string;
+  email_autenticado: string;
+  nome: string;
+  cargo: string;
+  id_funcional: string | null;
+  setor: string;
+  status: SignatureRequestStatus;
+  motivo_recusa: string | null;
+  ip_address: string | null;
+  user_agent: string | null;
+  aprovado_por: string | null;
+  aprovado_em: string | null;
+  created_at: string;
+  aprovador?: Profile | null;
+}

@@ -2,16 +2,21 @@
 
 import crypto from 'node:crypto';
 import { cookies, headers } from 'next/headers';
+import { revalidatePath } from 'next/cache';
 import { enviarEmail } from '@/lib/email/mailer';
+import { supabaseAdmin } from '@/lib/supabase/admin';
+import { obterPerfilAtual } from '@/app/actions/usuarios';
 import {
   CARGOS_ASSINATURA_SEMPI,
   SETORES_ASSINATURA_SEMPI,
+  type SignatureRequest,
 } from '@/types';
 
 const COOKIE_OTP = 'sempi_sig_otp';
 const COOKIE_SESSION = 'sempi_sig_session';
 const OTP_TTL_SECONDS = 600; // 10 minutos
 const SESSION_TTL_SECONDS = 1800; // 30 minutos
+const RELEASE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 dias
 const MAX_OTP_ATTEMPTS = 5;
 
 interface OtpPayload {
@@ -24,6 +29,19 @@ interface OtpPayload {
 interface SessionPayload {
   email: string;
   verifiedAt: number;
+  exp: number;
+}
+
+export interface ReleaseSignatureData {
+  nome: string;
+  cargo: string;
+  idFuncional: string;
+  setor: string;
+  email: string;
+}
+
+interface ReleaseTokenPayload extends ReleaseSignatureData {
+  requestId: string;
   exp: number;
 }
 
@@ -100,8 +118,8 @@ function normalizeText(text: string): string {
 }
 
 /**
- * Valida se o nome completo informado corresponde ao titular do e-mail institucional autenticado,
- * evitando que um servidor gere assinaturas em nome de terceiros.
+ * Valida se o nome completo informado corresponde ao titular do e-mail institucional autenticado.
+ * Ex.: "roger.candez@mulher.rj.gov.br" corresponde a "Roger Fellipe Candez Ramos Serra".
  */
 function validarCorrespondenciaNomeEmail(nome: string, email: string): boolean {
   const connectors = new Set(['de', 'da', 'do', 'dos', 'das', 'e']);
@@ -352,8 +370,37 @@ export async function encerrarSessaoAssinatura() {
 }
 
 /**
- * Valida a coerência entre nome e e-mail institucional, verifica listas oficiais de
- * cargo/setor, registra auditoria por e-mail e libera a assinatura final com logo oficial.
+ * Valida token de liberação emitido após aprovação pela Equipe de TI.
+ */
+export async function obterLiberacaoPorToken(token: string | undefined): Promise<{
+  valid: boolean;
+  dados: ReleaseSignatureData | null;
+}> {
+  if (!token) {
+    return { valid: false, dados: null };
+  }
+
+  const payload = verifyToken<ReleaseTokenPayload>(token);
+  if (!payload || Date.now() > payload.exp) {
+    return { valid: false, dados: null };
+  }
+
+  return {
+    valid: true,
+    dados: {
+      nome: payload.nome,
+      cargo: payload.cargo,
+      idFuncional: payload.idFuncional || '',
+      setor: payload.setor,
+      email: payload.email,
+    },
+  };
+}
+
+/**
+ * Fluxo híbrido:
+ * - Se o nome corresponder ao e-mail institucional autenticado: libera imediatamente e registra auditoria.
+ * - Se for e-mail setorial ou nome divergente: registra solicitação PENDENTE para aprovação pela TI no painel /admin/assinaturas.
  */
 export async function validarELiberarAssinatura(params: {
   nome: string;
@@ -405,13 +452,6 @@ export async function validarELiberarAssinatura(params: {
       };
     }
 
-    if (!validarCorrespondenciaNomeEmail(nome, sessao.email)) {
-      return {
-        success: false,
-        error: `O nome informado ("${nome}") não corresponde ao titular do e-mail autenticado (${sessao.email}). Utilize o seu e-mail institucional individual ou, caso utilize e-mail setorial, abra um chamado na ASSTIC.`,
-      };
-    }
-
     const headersList = await headers();
     const ip =
       headersList.get('x-forwarded-for')?.split(',')[0]?.trim() ||
@@ -422,68 +462,141 @@ export async function validarELiberarAssinatura(params: {
       timeZone: 'America/Sao_Paulo',
     });
 
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
     const emailNotificacaoTI =
       process.env.EMAIL_TI_NOTIFICACOES ||
       'ti.asstic@gmail.com, andersonesribeiro@hotmail.com, lgtec3@gmail.com, comeex7@gmail.com';
 
-    await Promise.allSettled([
-      enviarEmail({
-        para: emailNotificacaoTI,
-        assunto: `[Auditoria Assinatura Digital] ${nome} (${setor})`,
-        html: `
-          <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #1e293b; max-width: 620px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden;">
-            <div style="background: #003B73; padding: 20px 24px; color: #ffffff;">
-              <h1 style="margin: 0; font-size: 18px;">Auditoria • Emissão de Assinatura Digital</h1>
-              <p style="margin: 4px 0 0; font-size: 12px; opacity: 0.9;">Registro automático de emissão validada</p>
-            </div>
-            <div style="padding: 24px; background: #ffffff;">
-              <p>Uma assinatura digital institucional foi validada e liberada no portal:</p>
-              <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin: 16px 0;">
-                <p style="margin: 0 0 6px;"><strong>Nome:</strong> ${nome}</p>
-                <p style="margin: 0 0 6px;"><strong>Cargo / Função:</strong> ${cargo}</p>
-                <p style="margin: 0 0 6px;"><strong>ID Funcional:</strong> ${idFuncional || 'Não informado'}</p>
-                <p style="margin: 0 0 6px;"><strong>Setor:</strong> ${setor}</p>
-                <p style="margin: 0 0 6px;"><strong>E-mail Autenticado:</strong> ${sessao.email}</p>
-                <p style="margin: 0 0 6px;"><strong>Data/Hora:</strong> ${dataHora}</p>
-                <p style="margin: 0 0 6px;"><strong>IP:</strong> ${ip}</p>
-                <p style="margin: 0; font-size: 12px; color: #475569;"><strong>User-Agent:</strong> ${userAgent}</p>
+    const correspondenciaDireta = validarCorrespondenciaNomeEmail(nome, sessao.email);
+
+    // CASO 1: E-mail individual corresponde ao nome -> Libera na hora + Auditoria
+    if (correspondenciaDireta) {
+      await Promise.allSettled([
+        enviarEmail({
+          para: emailNotificacaoTI,
+          assunto: `[Auditoria Assinatura Digital] ${nome} (${setor})`,
+          html: `
+            <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #1e293b; max-width: 620px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden;">
+              <div style="background: #003B73; padding: 20px 24px; color: #ffffff;">
+                <h1 style="margin: 0; font-size: 18px;">Auditoria • Emissão de Assinatura Digital</h1>
+                <p style="margin: 4px 0 0; font-size: 12px; opacity: 0.9;">Liberação automática (e-mail individual compatível)</p>
+              </div>
+              <div style="padding: 24px; background: #ffffff;">
+                <p>Uma assinatura digital institucional foi validada e liberada automaticamente:</p>
+                <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin: 16px 0;">
+                  <p style="margin: 0 0 6px;"><strong>Nome:</strong> ${nome}</p>
+                  <p style="margin: 0 0 6px;"><strong>Cargo / Função:</strong> ${cargo}</p>
+                  <p style="margin: 0 0 6px;"><strong>ID Funcional:</strong> ${idFuncional || 'Não informado'}</p>
+                  <p style="margin: 0 0 6px;"><strong>Setor:</strong> ${setor}</p>
+                  <p style="margin: 0 0 6px;"><strong>E-mail Autenticado:</strong> ${sessao.email}</p>
+                  <p style="margin: 0 0 6px;"><strong>Data/Hora:</strong> ${dataHora}</p>
+                  <p style="margin: 0 0 6px;"><strong>IP:</strong> ${ip}</p>
+                  <p style="margin: 0; font-size: 12px; color: #475569;"><strong>User-Agent:</strong> ${userAgent}</p>
+                </div>
               </div>
             </div>
-          </div>
-        `,
-      }),
-      enviarEmail({
-        para: sessao.email,
-        assunto: `[SEMPI] Confirmação de geração de Assinatura Digital`,
-        html: `
-          <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #1e293b; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden;">
-            <div style="background: #003B73; padding: 20px 24px; color: #ffffff;">
-              <h1 style="margin: 0; font-size: 18px;">Assinatura Digital Emitida</h1>
-              <p style="margin: 4px 0 0; font-size: 12px; opacity: 0.9;">Notificação de segurança • SEMPI</p>
-            </div>
-            <div style="padding: 24px; background: #ffffff;">
-              <p>Olá, <strong>${nome}</strong>,</p>
-              <p>Confirmamos que uma assinatura institucional da SEMPI foi gerada utilizando sua conta autenticada (<strong>${sessao.email}</strong>) em <strong>${dataHora}</strong>.</p>
-              <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px; margin: 16px 0;">
-                <p style="margin: 0 0 4px;"><strong>Cargo:</strong> ${cargo}${idFuncional ? ` - ID: ${idFuncional}` : ''}</p>
-                <p style="margin: 0;"><strong>Setor:</strong> ${setor}</p>
+          `,
+        }),
+        enviarEmail({
+          para: sessao.email,
+          assunto: `[SEMPI] Confirmação de geração de Assinatura Digital`,
+          html: `
+            <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #1e293b; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden;">
+              <div style="background: #003B73; padding: 20px 24px; color: #ffffff;">
+                <h1 style="margin: 0; font-size: 18px;">Assinatura Digital Emitida</h1>
+                <p style="margin: 4px 0 0; font-size: 12px; opacity: 0.9;">Notificação de segurança • SEMPI</p>
               </div>
-              <p style="font-size: 13px; color: #475569;">Caso você não reconheça esta emissão, entre em contato imediatamente com a equipe de TI (ASSTIC).</p>
+              <div style="padding: 24px; background: #ffffff;">
+                <p>Olá, <strong>${nome}</strong>,</p>
+                <p>Confirmamos que uma assinatura institucional da SEMPI foi gerada utilizando sua conta autenticada (<strong>${sessao.email}</strong>) em <strong>${dataHora}</strong>.</p>
+                <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px; margin: 16px 0;">
+                  <p style="margin: 0 0 4px;"><strong>Cargo:</strong> ${cargo}${idFuncional ? ` - ID: ${idFuncional}` : ''}</p>
+                  <p style="margin: 0;"><strong>Setor:</strong> ${setor}</p>
+                </div>
+                <p style="font-size: 13px; color: #475569;">Caso você não reconheça esta emissão, entre em contato imediatamente com a equipe de TI (ASSTIC).</p>
+              </div>
             </div>
+          `,
+        }),
+      ]);
+
+      return {
+        success: true,
+        mode: 'LIBERADO' as const,
+        dadosValidados: {
+          nome,
+          cargo,
+          idFuncional,
+          setor,
+          email: sessao.email,
+        },
+      };
+    }
+
+    // CASO 2: E-mail setorial ou divergente -> Salva para aprovação da TI no painel logado
+    const { data: created, error: insertError } = await supabaseAdmin
+      .from('signature_requests')
+      .insert({
+        email_autenticado: sessao.email,
+        nome,
+        cargo,
+        id_funcional: idFuncional || null,
+        setor,
+        status: 'PENDENTE',
+        ip_address: ip,
+        user_agent: userAgent,
+      })
+      .select('id')
+      .single();
+
+    if (insertError) {
+      console.error('Erro ao salvar solicitação de assinatura:', insertError);
+      return {
+        success: false,
+        error:
+          'Não foi possível registrar sua solicitação de aprovação no banco de dados. Contate a ASSTIC.',
+      };
+    }
+
+    const linkPainel = `${appUrl}/admin/assinaturas`;
+
+    await enviarEmail({
+      para: emailNotificacaoTI,
+      assunto: `[Aprovação Assinatura Digital] ${nome} (${sessao.email})`,
+      html: `
+        <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #1e293b; max-width: 620px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden;">
+          <div style="background: #b45309; padding: 20px 24px; color: #ffffff;">
+            <h1 style="margin: 0; font-size: 18px;">Solicitação de Assinatura Pendente</h1>
+            <p style="margin: 4px 0 0; font-size: 12px; opacity: 0.9;">E-mail setorial ou nome divergente do titular</p>
           </div>
-        `,
-      }),
-    ]);
+          <div style="padding: 24px; background: #ffffff;">
+            <p>Um servidor solicitou a geração de assinatura institucional usando um e-mail setorial ou diferente do seu nome completo e aguarda liberação da TI:</p>
+            <div style="background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 16px; margin: 16px 0;">
+              <p style="margin: 0 0 6px;"><strong>Nome Solicitado:</strong> ${nome}</p>
+              <p style="margin: 0 0 6px;"><strong>Cargo / Função:</strong> ${cargo}</p>
+              <p style="margin: 0 0 6px;"><strong>ID Funcional:</strong> ${idFuncional || 'Não informado'}</p>
+              <p style="margin: 0 0 6px;"><strong>Setor:</strong> ${setor}</p>
+              <p style="margin: 0 0 6px;"><strong>E-mail Autenticado (OTP):</strong> ${sessao.email}</p>
+              <p style="margin: 0 0 6px;"><strong>Data/Hora:</strong> ${dataHora}</p>
+              <p style="margin: 0;"><strong>IP:</strong> ${ip}</p>
+            </div>
+            <p style="text-align: center; margin: 24px 0;">
+              <a href="${linkPainel}" style="background: #003B73; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block;">
+                Analisar e Aprovar no Painel TI
+              </a>
+            </p>
+          </div>
+        </div>
+      `,
+    });
+
+    revalidatePath('/admin/assinaturas');
 
     return {
       success: true,
-      dadosValidados: {
-        nome,
-        cargo,
-        idFuncional,
-        setor,
-        email: sessao.email,
-      },
+      mode: 'PENDENTE_TI' as const,
+      requestId: created.id,
+      email: sessao.email,
     };
   } catch (error: unknown) {
     console.error('Erro ao validar e liberar assinatura:', error);
@@ -491,5 +604,210 @@ export async function validarELiberarAssinatura(params: {
       success: false,
       error: 'Erro interno ao validar os dados da assinatura.',
     };
+  }
+}
+
+/**
+ * Lista todas as solicitações de assinatura para o painel administrativo logado.
+ */
+export async function listarSolicitacoesAssinaturaAdmin(): Promise<SignatureRequest[]> {
+  const perfil = await obterPerfilAtual();
+  if (!perfil) {
+    return [];
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from('signature_requests')
+    .select('*, aprovador:profiles(id, nome, email, cargo, role, is_active, created_at)')
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('Erro ao listar solicitações de assinatura:', error);
+    return [];
+  }
+
+  return (data || []) as SignatureRequest[];
+}
+
+/**
+ * Aprova uma solicitação pendente por dentro do painel logado e envia o link exclusivo
+ * da assinatura liberada para o e-mail autenticado via OTP.
+ */
+export async function aprovarSolicitacaoAssinatura(requestId: string) {
+  try {
+    const perfil = await obterPerfilAtual();
+    if (!perfil) {
+      return { success: false, error: 'Acesso não autorizado.' };
+    }
+
+    const { data: solicitacao, error: fetchError } = await supabaseAdmin
+      .from('signature_requests')
+      .select('*')
+      .eq('id', requestId)
+      .single();
+
+    if (fetchError || !solicitacao) {
+      return { success: false, error: 'Solicitação não encontrada.' };
+    }
+
+    if (solicitacao.status !== 'PENDENTE') {
+      return {
+        success: false,
+        error: `Esta solicitação já foi processada (${solicitacao.status}).`,
+      };
+    }
+
+    const agoraIso = new Date().toISOString();
+    const { error: updateError } = await supabaseAdmin
+      .from('signature_requests')
+      .update({
+        status: 'APROVADO',
+        aprovado_por: perfil.id,
+        aprovado_em: agoraIso,
+      })
+      .eq('id', requestId);
+
+    if (updateError) {
+      return { success: false, error: updateError.message };
+    }
+
+    const releasePayload: ReleaseTokenPayload = {
+      requestId: solicitacao.id,
+      nome: solicitacao.nome,
+      cargo: solicitacao.cargo,
+      idFuncional: solicitacao.id_funcional || '',
+      setor: solicitacao.setor,
+      email: solicitacao.email_autenticado,
+      exp: Date.now() + RELEASE_TTL_MS,
+    };
+
+    const releaseToken = signToken(releasePayload);
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    const linkAssinaturaPronta = `${appUrl}/assinatura?liberacao=${encodeURIComponent(releaseToken)}`;
+
+    const envio = await enviarEmail({
+      para: solicitacao.email_autenticado,
+      assunto: `[SEMPI] Sua Assinatura Digital foi aprovada pela TI (${solicitacao.nome})`,
+      html: `
+        <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #1e293b; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden;">
+          <div style="background: #059669; padding: 24px; color: #ffffff;">
+            <h1 style="margin: 0; font-size: 20px;">Assinatura Digital Aprovada!</h1>
+            <p style="margin: 4px 0 0; font-size: 13px; opacity: 0.9;">Liberada pela Equipe de TI • SEMPI</p>
+          </div>
+          <div style="padding: 24px; background: #ffffff;">
+            <p>Olá, <strong>${solicitacao.nome}</strong>,</p>
+            <p>Sua solicitação de assinatura digital foi analisada e <strong>aprovada</strong> por <strong>${perfil.nome}</strong>.</p>
+            <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 16px; margin: 18px 0;">
+              <p style="margin: 0 0 6px;"><strong>Nome:</strong> ${solicitacao.nome}</p>
+              <p style="margin: 0 0 6px;"><strong>Cargo:</strong> ${solicitacao.cargo}${solicitacao.id_funcional ? ` - ID: ${solicitacao.id_funcional}` : ''}</p>
+              <p style="margin: 0;"><strong>Setor:</strong> ${solicitacao.setor}</p>
+            </div>
+            <p>Clique no botão abaixo para acessar sua assinatura já validada com o logotipo oficial e fazer o download ou cópia:</p>
+            <p style="text-align: center; margin: 24px 0;">
+              <a href="${linkAssinaturaPronta}" style="background: #003B73; color: #ffffff; padding: 13px 26px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block;">
+                Acessar e Baixar Assinatura
+              </a>
+            </p>
+            <p style="font-size: 12px; color: #64748b; border-top: 1px solid #f1f5f9; padding-top: 14px;">
+              Este link exclusivo tem validade de 7 dias e foi enviado exclusivamente para o e-mail verificado (${solicitacao.email_autenticado}).
+            </p>
+          </div>
+        </div>
+      `,
+    });
+
+    revalidatePath('/admin/assinaturas');
+
+    if (!envio.success) {
+      return {
+        success: true,
+        warning:
+          'Solicitação aprovada no sistema, mas houve falha ao disparar o e-mail de notificação.',
+      };
+    }
+
+    return { success: true };
+  } catch (error: unknown) {
+    console.error('Erro ao aprovar solicitação de assinatura:', error);
+    return { success: false, error: 'Erro interno ao aprovar solicitação.' };
+  }
+}
+
+/**
+ * Recusa uma solicitação pendente por dentro do painel logado e notifica o solicitante.
+ */
+export async function recusarSolicitacaoAssinatura(
+  requestId: string,
+  motivoRaw: string
+) {
+  try {
+    const perfil = await obterPerfilAtual();
+    if (!perfil) {
+      return { success: false, error: 'Acesso não autorizado.' };
+    }
+
+    const motivo = (motivoRaw || '').trim();
+    if (!motivo) {
+      return { success: false, error: 'Informe o motivo da recusa.' };
+    }
+
+    const { data: solicitacao, error: fetchError } = await supabaseAdmin
+      .from('signature_requests')
+      .select('*')
+      .eq('id', requestId)
+      .single();
+
+    if (fetchError || !solicitacao) {
+      return { success: false, error: 'Solicitação não encontrada.' };
+    }
+
+    if (solicitacao.status !== 'PENDENTE') {
+      return {
+        success: false,
+        error: `Esta solicitação já foi processada (${solicitacao.status}).`,
+      };
+    }
+
+    const { error: updateError } = await supabaseAdmin
+      .from('signature_requests')
+      .update({
+        status: 'RECUSADO',
+        motivo_recusa: motivo,
+        aprovado_por: perfil.id,
+        aprovado_em: new Date().toISOString(),
+      })
+      .eq('id', requestId);
+
+    if (updateError) {
+      return { success: false, error: updateError.message };
+    }
+
+    await enviarEmail({
+      para: solicitacao.email_autenticado,
+      assunto: `[SEMPI] Solicitação de Assinatura Digital não aprovada (${solicitacao.nome})`,
+      html: `
+        <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #1e293b; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden;">
+          <div style="background: #e11d48; padding: 24px; color: #ffffff;">
+            <h1 style="margin: 0; font-size: 20px;">Solicitação Não Aprovada</h1>
+            <p style="margin: 4px 0 0; font-size: 13px; opacity: 0.9;">Gerador de Assinatura Digital • SEMPI</p>
+          </div>
+          <div style="padding: 24px; background: #ffffff;">
+            <p>Olá,</p>
+            <p>A solicitação de assinatura digital para <strong>${solicitacao.nome}</strong> (${solicitacao.cargo} — ${solicitacao.setor}) não foi aprovada pela equipe de TI.</p>
+            <div style="background: #fff1f2; border-left: 4px solid #e11d48; padding: 14px; margin: 18px 0;">
+              <p style="margin: 0 0 4px; font-weight: bold; color: #be123c;">Motivo informado:</p>
+              <p style="margin: 0; color: #334155;">${motivo}</p>
+            </div>
+            <p style="font-size: 13px; color: #475569;">Em caso de dúvidas ou correção de dados, acesse o portal e realize uma nova solicitação ou abra um chamado para a ASSTIC.</p>
+          </div>
+        </div>
+      `,
+    });
+
+    revalidatePath('/admin/assinaturas');
+    return { success: true };
+  } catch (error: unknown) {
+    console.error('Erro ao recusar solicitação de assinatura:', error);
+    return { success: false, error: 'Erro interno ao recusar solicitação.' };
   }
 }

@@ -49,6 +49,12 @@ export function AdminSidebar({ perfil }: { perfil?: any }) {
       active: pathname.startsWith('/admin/chamados'),
     },
     {
+      label: 'Assinaturas',
+      href: '/admin/assinaturas',
+      icon: PenTool,
+      active: pathname.startsWith('/admin/assinaturas'),
+    },
+    {
       label: 'Equipe de TI',
       href: '/admin/usuarios',
       icon: Users,

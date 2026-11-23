@@ -10,6 +10,7 @@ import {
   verificarCodigoAssinatura,
   encerrarSessaoAssinatura,
   validarELiberarAssinatura,
+  type ReleaseSignatureData,
 } from '@/app/actions/assinatura';
 import {
   Mail,
@@ -23,6 +24,7 @@ import {
   RotateCcw,
   Lock,
   LogOut,
+  Clock,
 } from 'lucide-react';
 
 const LOGO_URL = '/Secretaria-da-Mulher-e-Poliiticas-inclusivas_Horizontal.png';
@@ -53,11 +55,17 @@ function slugifyFilename(text: string) {
 
 export function GeradorAssinatura({
   initialEmail,
+  initialRelease,
 }: {
   initialEmail: string | null;
+  initialRelease?: ReleaseSignatureData | null;
 }) {
+  const [aprovadoPorTi, setAprovadoPorTi] = useState<boolean>(Boolean(initialRelease));
+
   // Estado de Autenticação OTP
-  const [emailAutenticado, setEmailAutenticado] = useState<string | null>(initialEmail);
+  const [emailAutenticado, setEmailAutenticado] = useState<string | null>(
+    initialRelease?.email || initialEmail
+  );
   const [emailInput, setEmailInput] = useState('');
   const [etapaOtp, setEtapaOtp] = useState<'EMAIL' | 'CODIGO'>('EMAIL');
   const [codigoInput, setCodigoInput] = useState('');
@@ -66,20 +74,29 @@ export function GeradorAssinatura({
   const [sucessoOtp, setSucessoOtp] = useState<string | null>(null);
 
   // Estado dos Dados da Assinatura
-  const [nome, setNome] = useState('');
-  const [cargo, setCargo] = useState('');
-  const [idFuncional, setIdFuncional] = useState('');
-  const [setor, setSetor] = useState('');
-  const [aceitouTermo, setAceitouTermo] = useState(false);
+  const [nome, setNome] = useState(initialRelease?.nome || '');
+  const [cargo, setCargo] = useState(initialRelease?.cargo || '');
+  const [idFuncional, setIdFuncional] = useState(initialRelease?.idFuncional || '');
+  const [setor, setSetor] = useState(initialRelease?.setor || '');
+  const [aceitouTermo, setAceitouTermo] = useState(Boolean(initialRelease));
 
   // Estado de Validação & Exportação
-  const [assinaturaLiberada, setAssinaturaLiberada] = useState(false);
+  const [assinaturaLiberada, setAssinaturaLiberada] = useState(Boolean(initialRelease));
+  const [pendenteAprovacaoTi, setPendenteAprovacaoTi] = useState(false);
   const [validando, setValidando] = useState(false);
   const [erroValidacao, setErroValidacao] = useState<string | null>(null);
   const [feedbackBanner, setFeedbackBanner] = useState<{
     message: string;
     type: 'success' | 'warning' | 'error';
-  } | null>(null);
+  } | null>(
+    initialRelease
+      ? {
+          message:
+            'Assinatura aprovada pela Equipe de TI! Você já pode baixar ou copiar a imagem oficial.',
+          type: 'success',
+        }
+      : null
+  );
   const [copiado, setCopiado] = useState(false);
   const [dimensoes, setDimensoes] = useState('636 × 292 px');
 
@@ -302,8 +319,10 @@ export function GeradorAssinatura({
 
   const handleTrocarEmail = async () => {
     await encerrarSessaoAssinatura();
+    setAprovadoPorTi(false);
     setEmailAutenticado(null);
     setAssinaturaLiberada(false);
+    setPendenteAprovacaoTi(false);
     setErroValidacao(null);
     setFeedbackBanner(null);
     setEtapaOtp('EMAIL');
@@ -314,10 +333,14 @@ export function GeradorAssinatura({
 
   // Reseta a liberação sempre que qualquer campo for editado (impede bypass de validação)
   const handleCampoChange = (setter: (v: string) => void) => (value: string) => {
+    if (aprovadoPorTi) return;
     setter(value);
     if (assinaturaLiberada) {
       setAssinaturaLiberada(false);
       setFeedbackBanner(null);
+    }
+    if (pendenteAprovacaoTi) {
+      setPendenteAprovacaoTi(false);
     }
     if (erroValidacao) {
       setErroValidacao(null);
@@ -327,8 +350,10 @@ export function GeradorAssinatura({
   // Handler de Validação e Liberação
   const handleValidarELiberar = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (aprovadoPorTi) return;
     setErroValidacao(null);
     setFeedbackBanner(null);
+    setPendenteAprovacaoTi(false);
     setValidando(true);
 
     const res = await validarELiberarAssinatura({
@@ -344,6 +369,16 @@ export function GeradorAssinatura({
     if (!res.success) {
       setAssinaturaLiberada(false);
       setErroValidacao(res.error || 'Não foi possível validar sua solicitação.');
+      return;
+    }
+
+    if (res.mode === 'PENDENTE_TI') {
+      setAssinaturaLiberada(false);
+      setPendenteAprovacaoTi(true);
+      showFeedback(
+        `Solicitação enviada para aprovação da Equipe de TI! Assim que liberada, o link da assinatura pronta será enviado para ${res.email}.`,
+        'warning'
+      );
       return;
     }
 
@@ -451,12 +486,14 @@ export function GeradorAssinatura({
   };
 
   const handleLimpar = () => {
+    setAprovadoPorTi(false);
     setNome('');
     setCargo('');
     setIdFuncional('');
     setSetor('');
     setAceitouTermo(false);
     setAssinaturaLiberada(false);
+    setPendenteAprovacaoTi(false);
     setErroValidacao(null);
     setFeedbackBanner(null);
   };
@@ -486,7 +523,7 @@ export function GeradorAssinatura({
               <span>Acesso restrito a servidores da SEMPI</span>
             </p>
             <p className="text-slate-600">
-              Para proteger o uso do logotipo oficial da Secretaria e evitar o uso indevido de identidade, confirme primeiro seu e-mail institucional (<strong>@mulher.rj.gov.br</strong>).
+              Para proteger o uso do logotipo oficial da Secretaria e evitar o uso indevido de identidade, confirme primeiro seu e-mail institucional ou do setor (<strong>@mulher.rj.gov.br</strong>).
             </p>
           </div>
 
@@ -609,10 +646,10 @@ export function GeradorAssinatura({
     <div className="space-y-6">
       {/* Barra de Identidade Autenticada */}
       <div className="bg-white border border-slate-200 rounded-2xl px-5 py-3.5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="flex items-center gap-2.5 text-xs sm:text-sm">
+        <div className="flex flex-wrap items-center gap-2.5 text-xs sm:text-sm">
           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-semibold text-xs">
             <ShieldCheck className="w-3.5 h-3.5" />
-            E-mail verificado
+            {aprovadoPorTi ? 'Aprovado pela Equipe de TI' : 'E-mail verificado'}
           </span>
           <span className="font-mono font-semibold text-[#0B1E3B]">{emailAutenticado}</span>
         </div>
@@ -623,7 +660,7 @@ export function GeradorAssinatura({
           className="inline-flex items-center gap-1.5 self-start sm:self-auto text-xs font-semibold text-slate-600 hover:text-rose-700 px-3 py-1.5 rounded-lg hover:bg-rose-50 border border-slate-200 transition-colors cursor-pointer"
         >
           <LogOut className="w-3.5 h-3.5" />
-          <span>Trocar e-mail</span>
+          <span>{aprovadoPorTi ? 'Nova assinatura' : 'Trocar e-mail'}</span>
         </button>
       </div>
 
@@ -634,18 +671,22 @@ export function GeradorAssinatura({
             <div>
               <h2 className="text-base font-bold text-[#0B1E3B]">Dados do Servidor</h2>
               <p className="text-xs text-slate-500 mt-0.5">
-                Preencha os campos para pré-visualizar sua assinatura.
+                {aprovadoPorTi
+                  ? 'Dados validados e travados conforme aprovação da TI.'
+                  : 'Preencha os campos para pré-visualizar sua assinatura.'}
               </p>
             </div>
-            <button
-              type="button"
-              onClick={handleLimpar}
-              className="inline-flex items-center gap-1 text-xs font-medium text-slate-500 hover:text-[#003B73] px-2.5 py-1.5 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
-              title="Limpar campos"
-            >
-              <RotateCcw className="w-3.5 h-3.5" />
-              <span>Limpar</span>
-            </button>
+            {!aprovadoPorTi && (
+              <button
+                type="button"
+                onClick={handleLimpar}
+                className="inline-flex items-center gap-1 text-xs font-medium text-slate-500 hover:text-[#003B73] px-2.5 py-1.5 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+                title="Limpar campos"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Limpar</span>
+              </button>
+            )}
           </div>
 
           <form onSubmit={handleValidarELiberar} className="space-y-4">
@@ -661,14 +702,17 @@ export function GeradorAssinatura({
                 type="text"
                 id="inputNome"
                 required
+                disabled={aprovadoPorTi}
                 value={nome}
                 onChange={(e) => handleCampoChange(setNome)(e.target.value)}
                 placeholder="Ex: Cleber Lopes Gomes"
-                className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#003B73] focus:border-[#003B73] transition-shadow"
+                className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm text-slate-900 placeholder-slate-400 disabled:bg-slate-100 disabled:text-slate-600 focus:outline-none focus:ring-2 focus:ring-[#003B73] focus:border-[#003B73] transition-shadow"
               />
-              <p className="text-[11px] text-slate-400 mt-1">
-                Deve corresponder ao titular do e-mail <strong>{emailAutenticado}</strong>.
-              </p>
+              {!aprovadoPorTi && (
+                <p className="text-[11px] text-slate-400 mt-1">
+                  Se o e-mail for setorial ou diferente do seu nome, a TI aprovará o envio pelo painel.
+                </p>
+              )}
             </div>
 
             {/* Função / Cargo (Dropdown) */}
@@ -682,9 +726,10 @@ export function GeradorAssinatura({
               <select
                 id="selectCargo"
                 required
+                disabled={aprovadoPorTi}
                 value={cargo}
                 onChange={(e) => handleCampoChange(setCargo)(e.target.value)}
-                className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#003B73] focus:border-[#003B73] transition-shadow"
+                className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm text-slate-900 bg-white disabled:bg-slate-100 disabled:text-slate-600 focus:outline-none focus:ring-2 focus:ring-[#003B73] focus:border-[#003B73] transition-shadow"
               >
                 <option value="">Selecione o cargo...</option>
                 {CARGOS_ASSINATURA_SEMPI.map((item) => (
@@ -709,10 +754,11 @@ export function GeradorAssinatura({
               <input
                 type="text"
                 id="inputIdFuncional"
+                disabled={aprovadoPorTi}
                 value={idFuncional}
                 onChange={(e) => handleCampoChange(setIdFuncional)(e.target.value)}
                 placeholder="Ex: 0000000-0"
-                className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#003B73] focus:border-[#003B73] transition-shadow"
+                className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm text-slate-900 placeholder-slate-400 disabled:bg-slate-100 disabled:text-slate-600 focus:outline-none focus:ring-2 focus:ring-[#003B73] focus:border-[#003B73] transition-shadow"
               />
               <p className="text-[11px] text-slate-400 mt-1">
                 Se deixado em branco, apenas o cargo será exibido na segunda linha.
@@ -730,9 +776,10 @@ export function GeradorAssinatura({
               <select
                 id="selectSetor"
                 required
+                disabled={aprovadoPorTi}
                 value={setor}
                 onChange={(e) => handleCampoChange(setSetor)(e.target.value)}
-                className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#003B73] focus:border-[#003B73] transition-shadow"
+                className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm text-slate-900 bg-white disabled:bg-slate-100 disabled:text-slate-600 focus:outline-none focus:ring-2 focus:ring-[#003B73] focus:border-[#003B73] transition-shadow"
               >
                 <option value="">Selecione o setor...</option>
                 {SETORES_ASSINATURA_SEMPI.map((item) => (
@@ -743,51 +790,55 @@ export function GeradorAssinatura({
               </select>
             </div>
 
-            {/* Declaração de Veracidade */}
-            <div className="pt-2 border-t border-slate-100">
-              <label className="flex items-start gap-2.5 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={aceitouTermo}
-                  onChange={(e) => {
-                    setAceitouTermo(e.target.checked);
-                    if (assinaturaLiberada && !e.target.checked) {
-                      setAssinaturaLiberada(false);
-                    }
-                  }}
-                  className="mt-0.5 rounded border-slate-300 text-[#003B73] focus:ring-[#003B73]"
-                />
-                <span className="text-xs text-slate-600 leading-relaxed">
-                  Declaro que os dados informados são verdadeiros e correspondem ao meu vínculo funcional ativo na SEMPI, ciente do registro de auditoria.
-                </span>
-              </label>
-            </div>
+            {!aprovadoPorTi && (
+              <>
+                {/* Declaração de Veracidade */}
+                <div className="pt-2 border-t border-slate-100">
+                  <label className="flex items-start gap-2.5 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={aceitouTermo}
+                      onChange={(e) => {
+                        setAceitouTermo(e.target.checked);
+                        if (assinaturaLiberada && !e.target.checked) {
+                          setAssinaturaLiberada(false);
+                        }
+                      }}
+                      className="mt-0.5 rounded border-slate-300 text-[#003B73] focus:ring-[#003B73]"
+                    />
+                    <span className="text-xs text-slate-600 leading-relaxed">
+                      Declaro que os dados informados são verdadeiros e correspondem ao meu vínculo funcional ativo na SEMPI, ciente do registro de auditoria.
+                    </span>
+                  </label>
+                </div>
 
-            {erroValidacao && (
-              <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-start gap-2">
-                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-600" />
-                <span>{erroValidacao}</span>
-              </div>
+                {erroValidacao && (
+                  <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-600" />
+                    <span>{erroValidacao}</span>
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={validando}
+                  className="w-full inline-flex items-center justify-center gap-2 bg-[#003B73] hover:bg-[#0B1E3B] disabled:opacity-60 text-white font-bold text-sm px-5 py-3 rounded-xl shadow-sm transition-all cursor-pointer"
+                >
+                  {validando ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <ShieldCheck className="w-4 h-4" />
+                  )}
+                  <span>
+                    {validando
+                      ? 'Validando solicitação...'
+                      : assinaturaLiberada
+                        ? 'Assinatura Validada'
+                        : 'Validar e Liberar Assinatura'}
+                  </span>
+                </button>
+              </>
             )}
-
-            <button
-              type="submit"
-              disabled={validando}
-              className="w-full inline-flex items-center justify-center gap-2 bg-[#003B73] hover:bg-[#0B1E3B] disabled:opacity-60 text-white font-bold text-sm px-5 py-3 rounded-xl shadow-sm transition-all cursor-pointer"
-            >
-              {validando ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <ShieldCheck className="w-4 h-4" />
-              )}
-              <span>
-                {validando
-                  ? 'Validando solicitação...'
-                  : assinaturaLiberada
-                    ? 'Assinatura Validada'
-                    : 'Validar e Liberar Assinatura'}
-              </span>
-            </button>
           </form>
         </section>
 
@@ -819,7 +870,19 @@ export function GeradorAssinatura({
               </div>
             </div>
 
-            {!assinaturaLiberada && (
+            {pendenteAprovacaoTi && (
+              <div className="mt-4 p-4 rounded-xl bg-blue-50 border border-blue-200 text-[#0B1E3B] text-xs sm:text-sm flex items-start gap-3">
+                <Clock className="w-5 h-5 shrink-0 text-[#003B73] mt-0.5" />
+                <div>
+                  <p className="font-bold">Aguardando liberação da Equipe de TI</p>
+                  <p className="text-slate-600 mt-1">
+                    Como o e-mail utilizado é setorial ou não corresponde diretamente ao nome informado, sua solicitação foi enviada para conferência no painel da TI. Assim que aprovada, você receberá o link da assinatura liberada no e-mail <strong>{emailAutenticado}</strong>.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {!assinaturaLiberada && !pendenteAprovacaoTi && (
               <div className="mt-4 p-3 rounded-xl bg-amber-50 border border-amber-200/80 text-amber-900 text-xs flex items-center gap-2">
                 <Lock className="w-4 h-4 shrink-0 text-amber-700" />
                 <span>

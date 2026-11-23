@@ -2,7 +2,10 @@ import React from 'react';
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import { LifeBuoy, ArrowLeft } from 'lucide-react';
-import { obterSessaoAssinatura } from '@/app/actions/assinatura';
+import {
+  obterSessaoAssinatura,
+  obterLiberacaoPorToken,
+} from '@/app/actions/assinatura';
 import { GeradorAssinatura } from '@/components/publico/GeradorAssinatura';
 
 export const dynamic = 'force-dynamic';
@@ -11,8 +14,20 @@ export const metadata: Metadata = {
   title: 'Gerador de Assinatura Digital',
 };
 
-export default async function AssinaturaDigitalPage() {
-  const sessao = await obterSessaoAssinatura();
+export default async function AssinaturaDigitalPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ liberacao?: string }>;
+}) {
+  const resolvedParams = await searchParams;
+  const liberacaoToken = resolvedParams?.liberacao;
+
+  const [sessao, liberacaoRes] = await Promise.all([
+    obterSessaoAssinatura(),
+    obterLiberacaoPorToken(liberacaoToken),
+  ]);
+
+  const tokenInvalido = Boolean(liberacaoToken && !liberacaoRes.valid);
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col justify-between">
@@ -43,7 +58,15 @@ export default async function AssinaturaDigitalPage() {
 
       {/* Conteúdo Principal */}
       <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 py-10">
-        <GeradorAssinatura initialEmail={sessao.email} />
+        {tokenInvalido && (
+          <div className="max-w-xl mx-auto mb-6 p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs sm:text-sm">
+            O link de liberação utilizado é inválido ou expirou (validade de 7 dias). Realize a verificação do seu e-mail institucional abaixo para solicitar novamente.
+          </div>
+        )}
+        <GeradorAssinatura
+          initialEmail={sessao.email}
+          initialRelease={liberacaoRes.dados}
+        />
       </main>
 
       {/* Footer */}
