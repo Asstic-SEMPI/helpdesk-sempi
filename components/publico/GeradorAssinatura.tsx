@@ -25,6 +25,9 @@ import {
   Lock,
   LogOut,
   Clock,
+  ChevronDown,
+  Search,
+  Check,
 } from 'lucide-react';
 
 const LOGO_URL = '/Secretaria-da-Mulher-e-Poliiticas-inclusivas_Horizontal.png';
@@ -51,6 +54,159 @@ function slugifyFilename(text: string) {
     .replace(/[^a-z0-9]+/g, '_')
     .replace(/^_+|_+$/g, '');
   return `assinatura_${clean || 'servidor'}.png`;
+}
+
+function normalizeSearch(text: string) {
+  return text
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+}
+
+function SearchableSelect({
+  id,
+  value,
+  onChange,
+  options,
+  placeholder,
+  searchPlaceholder,
+  disabled,
+}: {
+  id: string;
+  value: string;
+  onChange: (value: string) => void;
+  options: readonly string[];
+  placeholder: string;
+  searchPlaceholder: string;
+  disabled?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(event.target as Node)
+      ) {
+        setOpen(false);
+      }
+    };
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleEscape);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (open) {
+      setTimeout(() => searchInputRef.current?.focus(), 0);
+    }
+  }, [open]);
+
+  const handleToggle = () => {
+    if (disabled) return;
+    setOpen((prev) => {
+      if (!prev) {
+        setQuery('');
+      }
+      return !prev;
+    });
+  };
+
+  const normalizedQuery = normalizeSearch(query.trim());
+  const filteredOptions = normalizedQuery
+    ? options.filter((opt) => normalizeSearch(opt).includes(normalizedQuery))
+    : options;
+
+  return (
+    <div ref={containerRef} className="relative">
+      <button
+        type="button"
+        id={id}
+        disabled={disabled}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onClick={handleToggle}
+        className={`w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm bg-white disabled:bg-slate-100 disabled:text-slate-600 focus:outline-none focus:ring-2 focus:ring-[#003B73] focus:border-[#003B73] transition-shadow flex items-center justify-between gap-2 text-left ${
+          disabled ? 'cursor-not-allowed' : 'cursor-pointer'
+        }`}
+      >
+        <span className={`truncate ${value ? 'text-slate-900' : 'text-slate-400'}`}>
+          {value || placeholder}
+        </span>
+        <ChevronDown
+          className={`w-4 h-4 text-slate-400 shrink-0 transition-transform ${
+            open ? 'rotate-180' : ''
+          }`}
+        />
+      </button>
+
+      {open && !disabled && (
+        <div className="absolute z-40 mt-1.5 w-full rounded-xl border border-slate-200 bg-white shadow-lg overflow-hidden">
+          <div className="p-2 border-b border-slate-100 bg-slate-50/70">
+            <div className="relative">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                ref={searchInputRef}
+                type="text"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder={searchPlaceholder}
+                className="w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 py-1.5 text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#003B73] focus:border-[#003B73]"
+              />
+            </div>
+          </div>
+
+          <ul
+            role="listbox"
+            className="max-h-56 overflow-y-auto py-1 divide-y divide-slate-50"
+          >
+            {filteredOptions.length === 0 ? (
+              <li className="px-3.5 py-3 text-xs text-slate-500 text-center">
+                Nenhum item encontrado.
+              </li>
+            ) : (
+              filteredOptions.map((option) => {
+                const selected = option === value;
+                return (
+                  <li key={option}>
+                    <button
+                      type="button"
+                      role="option"
+                      aria-selected={selected}
+                      onClick={() => {
+                        onChange(option);
+                        setOpen(false);
+                      }}
+                      className={`w-full px-3.5 py-2 text-left text-xs sm:text-sm flex items-center justify-between gap-2 transition-colors cursor-pointer ${
+                        selected
+                          ? 'bg-blue-50 text-[#003B73] font-semibold'
+                          : 'text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      <span className="leading-snug">{option}</span>
+                      {selected && <Check className="w-4 h-4 text-[#003B73] shrink-0" />}
+                    </button>
+                  </li>
+                );
+              })
+            )}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
 }
 
 export function GeradorAssinatura({
@@ -715,7 +871,7 @@ export function GeradorAssinatura({
               )}
             </div>
 
-            {/* Função / Cargo (Dropdown) */}
+            {/* Função / Cargo (Dropdown com busca) */}
             <div>
               <label
                 htmlFor="selectCargo"
@@ -723,21 +879,15 @@ export function GeradorAssinatura({
               >
                 Função / Cargo <span className="text-rose-500">*</span>
               </label>
-              <select
+              <SearchableSelect
                 id="selectCargo"
-                required
-                disabled={aprovadoPorTi}
                 value={cargo}
-                onChange={(e) => handleCampoChange(setCargo)(e.target.value)}
-                className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm text-slate-900 bg-white disabled:bg-slate-100 disabled:text-slate-600 focus:outline-none focus:ring-2 focus:ring-[#003B73] focus:border-[#003B73] transition-shadow"
-              >
-                <option value="">Selecione o cargo...</option>
-                {CARGOS_ASSINATURA_SEMPI.map((item) => (
-                  <option key={item} value={item}>
-                    {item}
-                  </option>
-                ))}
-              </select>
+                onChange={handleCampoChange(setCargo)}
+                options={CARGOS_ASSINATURA_SEMPI}
+                placeholder="Selecione o cargo..."
+                searchPlaceholder="Pesquisar cargo..."
+                disabled={aprovadoPorTi}
+              />
             </div>
 
             {/* ID Funcional */}
@@ -765,7 +915,7 @@ export function GeradorAssinatura({
               </p>
             </div>
 
-            {/* Setor (Dropdown) */}
+            {/* Setor (Dropdown com busca) */}
             <div>
               <label
                 htmlFor="selectSetor"
@@ -773,21 +923,15 @@ export function GeradorAssinatura({
               >
                 Setor <span className="text-rose-500">*</span>
               </label>
-              <select
+              <SearchableSelect
                 id="selectSetor"
-                required
-                disabled={aprovadoPorTi}
                 value={setor}
-                onChange={(e) => handleCampoChange(setSetor)(e.target.value)}
-                className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm text-slate-900 bg-white disabled:bg-slate-100 disabled:text-slate-600 focus:outline-none focus:ring-2 focus:ring-[#003B73] focus:border-[#003B73] transition-shadow"
-              >
-                <option value="">Selecione o setor...</option>
-                {SETORES_ASSINATURA_SEMPI.map((item) => (
-                  <option key={item} value={item}>
-                    {item}
-                  </option>
-                ))}
-              </select>
+                onChange={handleCampoChange(setSetor)}
+                options={SETORES_ASSINATURA_SEMPI}
+                placeholder="Selecione o setor..."
+                searchPlaceholder="Pesquisar setor..."
+                disabled={aprovadoPorTi}
+              />
             </div>
 
             {!aprovadoPorTi && (
