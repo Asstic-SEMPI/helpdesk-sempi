@@ -32,15 +32,15 @@ import {
 
 const LOGO_URL = '/Secretaria-da-Mulher-e-Poliiticas-inclusivas_Horizontal.png';
 
-const SCALE = 2;
-const MIN_WIDTH = 636;
+const SCALE = 1;
+const MIN_WIDTH = 629;
 const ACCENT_BAR_WIDTH = 7;
 const ACCENT_BAR_GAP = 16;
 const PADDING_LEFT = 16;
 const PADDING_RIGHT = 20;
 const CONTENT_START_X = PADDING_LEFT + ACCENT_BAR_WIDTH + ACCENT_BAR_GAP;
-const PADDING_TOP = 18;
-const PADDING_BOTTOM = 16;
+const PADDING_TOP = 25;
+const PADDING_BOTTOM = 26;
 
 const COLOR_PURPLE = '#6d28d9';
 const COLOR_DARK_BLUE = '#0a3d6b';
@@ -254,7 +254,7 @@ export function GeradorAssinatura({
       : null
   );
   const [copiado, setCopiado] = useState(false);
-  const [dimensoes, setDimensoes] = useState('636 × 292 px');
+  const [dimensoes, setDimensoes] = useState('629 × 279 px');
 
   // Canvas e Imagem Oficial
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -326,9 +326,9 @@ export function GeradorAssinatura({
     );
     const logicalWidth = CONTENT_START_X + contentWidth + PADDING_RIGHT;
 
-    // Proporção da imagem oficial (996 x 285 -> ~0.286)
+    // Proporção da imagem oficial (1341 x 272 -> ~0.203)
     const maxLogoDrawWidth = Math.min(contentWidth, 560);
-    let logoHeight = Math.round(maxLogoDrawWidth * (285 / 996));
+    let logoHeight = Math.round(maxLogoDrawWidth * (272 / 1341));
     if (assinaturaLiberada && logoImg && logoImg.naturalWidth > 0) {
       const ratio = logoImg.naturalHeight / logoImg.naturalWidth;
       logoHeight = Math.round(maxLogoDrawWidth * ratio);
@@ -337,8 +337,8 @@ export function GeradorAssinatura({
     const yNome = PADDING_TOP;
     const yFuncao = yNome + 36;
     const ySetor = yFuncao + 26;
-    const yDivider = ySetor + 28;
-    const yLogo = yDivider + 12;
+    const yDivider = ySetor + 34;
+    const yLogo = yDivider + 18;
     const logicalHeight = yLogo + logoHeight + PADDING_BOTTOM;
 
     canvas.width = Math.round(logicalWidth * SCALE);
